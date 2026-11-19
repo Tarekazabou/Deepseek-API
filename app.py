@@ -2,9 +2,10 @@
 
     python app.py            # serves on http://localhost:8000
 
-On first use (no saved session) a browser window opens for you to sign in by
-hand; run `python -m deepseek.auth` to do that ahead of time. Set
-DEEPSEEK_PROFILE_DIR to reuse an existing signed-in Chrome profile.
+On first use (no saved session), run `python -m deepseek.auth` once to sign in
+in a visible browser. The server defaults to headless/session reuse and will
+not pop open Chrome automatically. Set DEEPSEEK_PROFILE_DIR to reuse a
+persistent signed-in Chrome profile.
 """
 
 import os

@@ -30,7 +30,7 @@ ADAPTER_API_KEY = os.getenv("ADAPTER_API_KEY") or os.getenv("DEEPSEEK_API_KEY")
 # in)? On by default for local single-user use. Set to "0"/"false" for headless
 # deployments, where it instead returns a 503 telling the caller to run
 # `python -m deepseek.auth`.
-SERVER_INTERACTIVE_LOGIN = _env_flag("SERVER_INTERACTIVE_LOGIN", "1")
+SERVER_INTERACTIVE_LOGIN = _env_flag("SERVER_INTERACTIVE_LOGIN", "0")
 
 # Public model ids the server advertises (via /v1/models) and accepts, mapped to
 # DeepSeek's `model_type` wire value. This is the MODEL axis ONLY — it picks

@@ -118,6 +118,27 @@ def healthz():
     return {"status": "ok"}
 
 
+@app.get("/healthz/auth")
+def auth_healthz():
+    """Report authentication state without exposing session tokens or cookies."""
+    try:
+        client = get_client()
+        age_seconds = int(client.session.age)
+        return {
+            "status": "ok",
+            "authenticated": True,
+            "session_age_seconds": age_seconds,
+        }
+    except LoginRequired:
+        return JSONResponse(
+            status_code=503,
+            content={
+                "status": "login_required",
+                "authenticated": False,
+            },
+        )
+
+
 @app.get("/v1/models")
 def list_models():
     created = int(time.time())
