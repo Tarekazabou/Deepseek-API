@@ -161,7 +161,6 @@ async def chat_completions(req: ChatCompletionRequest):
             status=400,
             err_type="streaming_not_supported",
         )
-
     if not is_known_model(req.model):
         return _error(
             f"The model `{req.model}` does not exist. Available models: "
@@ -226,6 +225,13 @@ async def chat_completions(req: ChatCompletionRequest):
         return _error("Upstream request timed out", status=504, err_type="timeout")
     except Exception:
         return _error("DeepSeek request failed", status=502, err_type="bad_gateway")
+
+    if not reply.text or not reply.text.strip():
+        return _error(
+            "DeepSeek returned no answer text",
+            status=502,
+            err_type="upstream_empty_response",
+        )
 
     return completion_response(req.model, reply.text, prompt, reply.conversation_id,
                                reply.reasoning)
