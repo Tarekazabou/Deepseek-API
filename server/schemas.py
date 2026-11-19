@@ -20,6 +20,7 @@ class ChatCompletionRequest(BaseModel):
     model: str = DEFAULT_MODEL
     messages: List[ChatMessage]
     stream: bool = False
+    response_format: Optional[dict] = None
     # Pass a conversation_id from a previous response to resume that thread.
     conversation_id: Optional[str] = None
     # Tools to enable for this request, independent of the model. OpenAI clients

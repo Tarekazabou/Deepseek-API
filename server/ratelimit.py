@@ -82,6 +82,7 @@ def install_rate_limit(app, limiter: RateLimiter, *, protect_prefix: str = "/v1"
                 status_code=429,
                 content={
                     "error": {
+                        "code": "rate_limit_exceeded",
                         "message": (
                             f"Rate limit exceeded: {limiter.limit} requests per "
                             f"{int(limiter.window)}s. Retry in "

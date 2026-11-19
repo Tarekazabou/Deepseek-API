@@ -23,10 +23,11 @@ from __future__ import annotations
 
 import threading
 import time
-
 from fastapi import FastAPI
 from fastapi.responses import JSONResponse, StreamingResponse
 from starlette.concurrency import run_in_threadpool
+from starlette.requests import Request
+import httpx
 
 from deepseek.auth import LoginRequired
 from deepseek.client import DeepSeekClient
@@ -36,11 +37,13 @@ from .config import (
     RATE_LIMIT_PER_MINUTE,
     SERVER_INTERACTIVE_LOGIN,
     TRUST_PROXY_HEADERS,
+    ADAPTER_API_KEY,
     is_known_model,
     resolve_model_type,
 )
 from .openai_format import (
     completion_response,
+    aligny_prompt,
     messages_to_prompt,
     stream_chunks,
     stream_error,
@@ -49,6 +52,24 @@ from .ratelimit import RateLimiter, install_rate_limit
 from .schemas import ChatCompletionRequest
 
 app = FastAPI(title="DeepSeek OpenAI-compatible API", version="0.1.0")
+
+
+@app.middleware("http")
+async def adapter_auth(request: Request, call_next):
+    if ADAPTER_API_KEY:
+        authorization = request.headers.get("authorization", "")
+        if authorization != f"Bearer {ADAPTER_API_KEY}":
+            return JSONResponse(
+                status_code=401,
+                content={
+                    "error": {
+                        "code": "invalid_api_key",
+                        "type": "authentication_error",
+                    }
+                },
+            )
+    return await call_next(request)
+
 install_rate_limit(
     app,
     RateLimiter(limit=RATE_LIMIT_PER_MINUTE, window=60.0),
@@ -83,7 +104,12 @@ def get_client() -> DeepSeekClient:
 def _error(message: str, status: int = 500, err_type: str = "server_error"):
     return JSONResponse(
         status_code=status,
-        content={"error": {"message": message, "type": err_type}},
+        content={
+            "error": {
+                "code": err_type,
+                "type": err_type,
+            }
+        },
     )
 
 
@@ -108,6 +134,12 @@ def list_models():
 async def chat_completions(req: ChatCompletionRequest):
     if not req.messages:
         return _error("`messages` must not be empty", status=400, err_type="invalid_request_error")
+    if req.stream:
+        return _error(
+            "Streaming is not supported; send \"stream\": false",
+            status=400,
+            err_type="streaming_not_supported",
+        )
 
     if not is_known_model(req.model):
         return _error(
@@ -119,7 +151,11 @@ async def chat_completions(req: ChatCompletionRequest):
     # A thread's model is fixed when it's created, so on resume we ignore `model`
     # (the OpenAI SDK always sends one) and let the existing thread's model stand.
     model_type = None if req.conversation_id else resolve_model_type(req.model)
-    prompt = messages_to_prompt(req.messages)
+    json_mode = (
+        isinstance(req.response_format, dict)
+        and req.response_format.get("type") == "json_object"
+    )
+    prompt = aligny_prompt(req.messages, json_mode)
 
     try:
         # Off the event loop: get_client() uses Playwright's sync API, which
@@ -127,8 +163,10 @@ async def chat_completions(req: ChatCompletionRequest):
         client = await run_in_threadpool(get_client)
     except LoginRequired as e:
         return _error(str(e), status=503, err_type="login_required")
-    except Exception as e:  # session/login failure
-        return _error(f"Failed to initialise DeepSeek session: {e}")
+    except httpx.TimeoutException:
+        return _error("Upstream request timed out", status=504, err_type="timeout")
+    except Exception:
+        return _error("Failed to initialise DeepSeek session", status=503, err_type="service_unavailable")
 
     if req.stream:
         # Open the thread before responding, so failures here (bad session,
@@ -140,8 +178,10 @@ async def chat_completions(req: ChatCompletionRequest):
             )
         except LoginRequired as e:
             return _error(str(e), status=503, err_type="login_required")
-        except Exception as e:
-            return _error(f"DeepSeek request failed: {e}")
+        except httpx.TimeoutException:
+            return _error("Upstream request timed out", status=504, err_type="timeout")
+        except Exception:
+            return _error("DeepSeek request failed", status=502, err_type="bad_gateway")
 
         def gen():
             # Headers are already sent by now, so report a mid-stream failure
@@ -161,8 +201,10 @@ async def chat_completions(req: ChatCompletionRequest):
         )
     except LoginRequired as e:
         return _error(str(e), status=503, err_type="login_required")
-    except Exception as e:
-        return _error(f"DeepSeek request failed: {e}")
+    except httpx.TimeoutException:
+        return _error("Upstream request timed out", status=504, err_type="timeout")
+    except Exception:
+        return _error("DeepSeek request failed", status=502, err_type="bad_gateway")
 
     return completion_response(req.model, reply.text, prompt, reply.conversation_id,
                                reply.reasoning)

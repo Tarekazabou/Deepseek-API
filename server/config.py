@@ -21,6 +21,10 @@ RATE_LIMIT_PER_MINUTE = int(os.getenv("RATE_LIMIT_PER_MINUTE", "30"))
 # caller can send a fake one and dodge the limit.
 TRUST_PROXY_HEADERS = _env_flag("TRUST_PROXY_HEADERS", "0")
 
+# Optional bearer authentication for clients calling this adapter.
+# The upstream DeepSeek session is independent and stored under session/.
+ADAPTER_API_KEY = os.getenv("ADAPTER_API_KEY") or os.getenv("DEEPSEEK_API_KEY")
+
 # When the server has no session, should it pop a visible browser window for
 # interactive sign-in (the first request then blocks until you finish logging
 # in)? On by default for local single-user use. Set to "0"/"false" for headless

@@ -50,6 +50,18 @@ def messages_to_prompt(messages: List[ChatMessage]) -> str:
     return "\n\n".join(lines)
 
 
+def aligny_prompt(messages: List[ChatMessage], json_mode: bool) -> str:
+    """Build a stateless prompt and, when requested, enforce JSON-object output."""
+    prompt = messages_to_prompt(messages)
+    if json_mode:
+        return (
+            prompt
+            + "\n\nReturn exactly one valid JSON object and nothing else. "
+            "Do not use markdown fences, commentary, or reasoning outside the JSON."
+        )
+    return prompt
+
+
 def _now() -> int:
     return int(time.time())
 
